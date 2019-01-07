@@ -1,5 +1,6 @@
 #!/bin/bash
 
+export LANG=ja_JP.UTF-8
 AWSCLI=${AWSCLI:-/usr/bin/aws}
 
 DB_ERRORLOG=${DB_ERRORLOG:-log/ERROR}
