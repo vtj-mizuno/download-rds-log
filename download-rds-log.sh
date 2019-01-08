@@ -1,16 +1,6 @@
 #!/bin/bash
 
 export LANG=ja_JP.UTF-8
-AWSCLI=${AWSCLI:-/usr/bin/aws}
-
-DB_ERRORLOG=${DB_ERRORLOG:-log/ERROR}
-REGION=${REGION:-us-west-2}
-DB_INSTANCE=${DB_INSTANCE:-sqlserver}
-LOG_FILE=$LOGDIR/${LOGFILE:-/var/log/sqlserver/error}
-
-LOG_DIR=$(dirname $LOG_FILE)
-PREVIOUS_LOG=${LOG_DIR}/${DB_INSTANCE}-prevlog
-CURRENT_LOG=${LOG_DIR}/${DB_INSTANCE}-currentlog
 
 function usage_exit
 {
@@ -43,8 +33,37 @@ do
     esac
 done
 
+AWSCLI=${AWSCLI:-/usr/bin/aws}
+DB_ERRORLOG=${DB_ERRORLOG:-log/ERROR}
+REGION=${REGION:-us-west-2}
+DB_INSTANCE=${DB_INSTANCE:-sqlserver}
+LOG_FILE=$LOGDIR/${LOGFILE:-/var/log/sqlserver/error}
+LOG_DIR=$(dirname $LOG_FILE)
+PREVIOUS_LOG=${LOG_DIR}/${DB_INSTANCE}.prevlog
+CURRENT_LOG=${LOG_DIR}/${DB_INSTANCE}.currentlog
+PREVIOUS_WRITTEN=${LOG_DIR}/${DB_INSTANCE}.lastwritten
+
 if [ ! -d $LOG_DIR ]; then
     mkdir -p $LOG_DIR
+fi
+
+# Get the last log entry time from RDS.
+LAST_WRITTEN=$(${AWSCLI} --region $REGION \
+                         rds describe-db-log-files \
+                         --db-instance-identifier $DB_INSTANCE \
+                         | jq ".[][] | select(.LogFileName==\"${DB_ERRORLOG}\") | .LastWritten")
+
+# Get the timestamp of the log written to CloudWatch Logs previous time.
+if [ -f $PREVIOUS_WRITTEN ]; then
+    PREVIOUS_TIMESTAMP=$(cat $PREVIOUS_WRITTEN)
+
+    # If the log has not been updated, exit
+    if [ "$LAST_WRITTEN" == "$PREVIOUS_TIMESTAMP" ]; then
+        exit 0
+    fi
+else
+    # Set --starting-token option to get all the logs for first run.
+    AWSCLI_OPT='--starting-token 0'
 fi
 
 # Download SQL Server Logs.
@@ -54,7 +73,8 @@ ${AWSCLI} --region $REGION \
     rds download-db-log-file-portion \
     --db-instance-identifier $DB_INSTANCE \
     --output json \
-    --log-file-name $DB_ERRORLOG | jq -r '.LogFileData' > $CURRENT_LOG
+    --log-file-name $DB_ERRORLOG \
+    $AWSCLI_OPT | jq -r '.LogFileData' > $CURRENT_LOG
 
 # Extract only the new arrival logs.
 # It is preferable to use 'aws logs' to compare with existing log.
@@ -66,3 +86,4 @@ else
 fi
 
 mv -f $CURRENT_LOG $PREVIOUS_LOG
+echo $LAST_WRITTEN > $PREVIOUS_WRITTEN
