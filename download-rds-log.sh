@@ -61,10 +61,6 @@ if [ -f $PREVIOUS_WRITTEN ]; then
     if [ "$LAST_WRITTEN" == "$PREVIOUS_TIMESTAMP" ]; then
         exit 0
     fi
-else
-    # Set --starting-token option to get all the logs for first run.
-    AWSCLI_OPT='--starting-token 0'
-fi
 
 # Download SQL Server Logs.
 # In order to remove unnecessary information(e.g. Marker),
@@ -74,7 +70,7 @@ ${AWSCLI} --region $REGION \
     --db-instance-identifier $DB_INSTANCE \
     --output json \
     --log-file-name $DB_ERRORLOG \
-    $AWSCLI_OPT | jq -r '.LogFileData' > $CURRENT_LOG
+    --no-paginate | jq -r '.LogFileData' > $CURRENT_LOG
 
 # Extract only the new arrival logs.
 # It is preferable to use 'aws logs' to compare with existing log.
