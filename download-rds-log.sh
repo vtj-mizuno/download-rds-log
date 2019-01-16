@@ -61,6 +61,7 @@ if [ -f $PREVIOUS_WRITTEN ]; then
     if [ "$LAST_WRITTEN" == "$PREVIOUS_TIMESTAMP" ]; then
         exit 0
     fi
+fi
 
 # Download SQL Server Logs.
 # In order to remove unnecessary information(e.g. Marker),
