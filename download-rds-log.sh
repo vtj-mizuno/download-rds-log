@@ -2,6 +2,12 @@
 
 export LANG=ja_JP.UTF-8
 
+AWSCLI=${AWSCLI:-/usr/bin/aws}
+DB_ERRORLOG=${DB_ERRORLOG:-log/ERROR}
+LOG_FILE=$LOGDIR/${LOG_FILE:-/var/log/sqlserver/error}
+DB_INSTANCE=${DB_INSTANCE:-sqlserver}
+REGION=${REGION:-us-west-2}
+
 function usage_exit
 {
     echo "Download the log of RDS and save it to a local file."
@@ -33,11 +39,6 @@ do
     esac
 done
 
-AWSCLI=${AWSCLI:-/usr/bin/aws}
-DB_ERRORLOG=${DB_ERRORLOG:-log/ERROR}
-REGION=${REGION:-us-west-2}
-DB_INSTANCE=${DB_INSTANCE:-sqlserver}
-LOG_FILE=$LOGDIR/${LOG_FILE:-/var/log/sqlserver/error}
 LOG_DIR=$(dirname $LOG_FILE)
 PREVIOUS_LOG=${LOG_FILE}.prevlog
 CURRENT_LOG=${LOG_FILE}.currentlog
@@ -55,6 +56,10 @@ ${AWSCLI} --region $REGION \
     --output json \
     --log-file-name $DB_ERRORLOG \
     --no-paginate | jq -r '.LogFileData' > $CURRENT_LOG
+
+if [ "$(cat $CURRENT_LOG)" == "null" -o -z "$(cat $CURRENT_LOG)" ]; then
+    exit
+fi
 
 # Extract only the new arrival logs.
 # It is preferable to use 'aws logs' to compare with existing log.
