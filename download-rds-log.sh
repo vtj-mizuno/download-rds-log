@@ -39,28 +39,11 @@ REGION=${REGION:-us-west-2}
 DB_INSTANCE=${DB_INSTANCE:-sqlserver}
 LOG_FILE=$LOGDIR/${LOG_FILE:-/var/log/sqlserver/error}
 LOG_DIR=$(dirname $LOG_FILE)
-PREVIOUS_LOG=${LOG_DIR}/${DB_INSTANCE}.prevlog
-CURRENT_LOG=${LOG_DIR}/${DB_INSTANCE}.currentlog
-PREVIOUS_WRITTEN=${LOG_DIR}/${DB_INSTANCE}.lastwritten
+PREVIOUS_LOG=${LOG_FILE}.prevlog
+CURRENT_LOG=${LOG_FILE}.currentlog
 
 if [ ! -d $LOG_DIR ]; then
     mkdir -p $LOG_DIR
-fi
-
-# Get the last log entry time from RDS.
-LAST_WRITTEN=$(${AWSCLI} --region $REGION \
-                         rds describe-db-log-files \
-                         --db-instance-identifier $DB_INSTANCE \
-                         | jq ".[][] | select(.LogFileName==\"${DB_ERRORLOG}\") | .LastWritten")
-
-# Get the timestamp of the log written to CloudWatch Logs previous time.
-if [ -f $PREVIOUS_WRITTEN ]; then
-    PREVIOUS_TIMESTAMP=$(cat $PREVIOUS_WRITTEN)
-
-    # If the log has not been updated, exit
-    if [ "$LAST_WRITTEN" == "$PREVIOUS_TIMESTAMP" ]; then
-        exit 0
-    fi
 fi
 
 # Download SQL Server Logs.
@@ -83,4 +66,3 @@ else
 fi
 
 mv -f $CURRENT_LOG $PREVIOUS_LOG
-echo $LAST_WRITTEN > $PREVIOUS_WRITTEN
