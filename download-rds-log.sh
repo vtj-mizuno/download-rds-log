@@ -53,9 +53,10 @@ fi
 ${AWSCLI} --region $REGION \
     rds download-db-log-file-portion \
     --db-instance-identifier $DB_INSTANCE \
-    --output json \
+    --output text \
     --log-file-name $DB_ERRORLOG \
-    --no-paginate | jq -r '.LogFileData' > $CURRENT_LOG
+    --no-paginate \
+    --query 'LogFileData' > $CURRENT_LOG
 
 if [ "$(cat $CURRENT_LOG)" == "null" -o -z "$(cat $CURRENT_LOG)" ]; then
     exit
