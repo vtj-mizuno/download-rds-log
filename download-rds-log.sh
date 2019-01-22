@@ -40,35 +40,45 @@ do
 done
 
 LOG_DIR=$(dirname $LOG_FILE)
-PREVIOUS_LOG=${LOG_FILE}.prevlog
-CURRENT_LOG=${LOG_FILE}.currentlog
+PREVIOUS_LOG_FILE=${LOG_FILE}.previouslog
+CURRENT_LOG_FILE=${LOG_FILE}.currentlog
 
 if [ ! -d $LOG_DIR ]; then
     mkdir -p $LOG_DIR
 fi
 
 # Download SQL Server Logs.
-# In order to remove unnecessary information(e.g. Marker),
-# download log with json and convert only 'LogFileData' field to text.
 ${AWSCLI} --region $REGION \
     rds download-db-log-file-portion \
     --db-instance-identifier $DB_INSTANCE \
     --output text \
     --log-file-name $DB_ERRORLOG \
     --no-paginate \
-    --query 'LogFileData' > $CURRENT_LOG
+    --query 'LogFileData' | sed '/^$/d' > $CURRENT_LOG_FILE
 
-if [ "$(cat $CURRENT_LOG)" == "null" -o -z "$(cat $CURRENT_LOG)" ]; then
+if [ "$(cat $CURRENT_LOG_FILE)" == "null" -o "$(cat $CURRENT_LOG_FILE)" == "None" -o -z "$(cat $CURRENT_LOG_FILE)" ]; then
     exit
 fi
 
-# Extract only the new arrival logs.
-# It is preferable to use 'aws logs' to compare with existing log.
-# However, due to various problems, Taking diffs with previous files.
-if [ -f $PREVIOUS_LOG ]; then
-    diff --changed-group-format='%>' --unchanged-group-format='' $PREVIOUS_LOG $CURRENT_LOG >> $LOG_FILE
+# Skip over duplicate logs.
+if [ -f $PREVIOUS_LOG_FILE ]; then
+    # Find the line number that matches the log written last.
+    PREVIOUS_LOG=$(cat $PREVIOUS_LOG_FILE)
+    LINE=$(grep -n "$PREVIOUS_LOG" $CURRENT_LOG_FILE | tail -n 1 | cut -d ':' -f 1)
+    if [ -n "$LINE" ]; then
+        # The line after the written last.
+        # If there is no new arrival log, nothing is written.
+        tail -n +$(expr $LINE + 1) $CURRENT_LOG_FILE >> $LOG_FILE
+    else
+        # When all downloaded logs are new arrival logs.
+        cat $CURRENT_LOG_FILE >> $LOG_FILE
+    fi
 else
-    cat $CURRENT_LOG >> $LOG_FILE
+    # If you have never written logs in the past (At first run).
+    cat $CURRENT_LOG_FILE >> $LOG_FILE
 fi
 
-mv -f $CURRENT_LOG $PREVIOUS_LOG
+# Save the last written log to another file to accommodate log rotation.
+tail -n 1 $CURRENT_LOG_FILE > $PREVIOUS_LOG_FILE
+
+rm -f $CURRENT_LOG_FILE
