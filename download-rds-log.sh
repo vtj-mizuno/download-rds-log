@@ -64,7 +64,7 @@ fi
 if [ -f $PREVIOUS_LOG_FILE ]; then
     # Find the line number that matches the log written last.
     PREVIOUS_LOG=$(cat $PREVIOUS_LOG_FILE)
-    LINE=$(grep -n "$PREVIOUS_LOG" $CURRENT_LOG_FILE | tail -n 1 | cut -d ':' -f 1)
+    LINE=$(grep -F -n "$PREVIOUS_LOG" $CURRENT_LOG_FILE | tail -n 1 | cut -d ':' -f 1)
     if [ -n "$LINE" ]; then
         # The line after the written last.
         # If there is no new arrival log, nothing is written.
